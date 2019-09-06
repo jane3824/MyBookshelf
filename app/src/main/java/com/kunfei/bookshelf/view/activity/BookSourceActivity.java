@@ -71,7 +71,6 @@ public class BookSourceActivity extends MBaseActivity<BookSourceContract.Present
     private boolean selectAll = true;
     private MenuItem groupItem;
     private SubMenu groupMenu;
-    private SubMenu sortMenu;
     private BookSourceAdapter adapter;
     private SearchView.SearchAutoComplete mSearchAutoComplete;
     private boolean isSearch;
@@ -208,14 +207,24 @@ public class BookSourceActivity extends MBaseActivity<BookSourceContract.Present
     @Override
     public void refreshBookSource() {
         if (isSearch) {
-            String term = "%" + searchView.getQuery() + "%";
-            List<BookSourceBean> sourceBeanList = DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
-                    .whereOr(BookSourceBeanDao.Properties.BookSourceName.like(term),
-                            BookSourceBeanDao.Properties.BookSourceGroup.like(term),
-                            BookSourceBeanDao.Properties.BookSourceUrl.like(term))
-                    .orderRaw(BookSourceManager.getBookSourceSort())
-                    .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
-                    .list();
+            List<BookSourceBean> sourceBeanList;
+            if (searchView.getQuery().toString().equals("enabled")) {
+                sourceBeanList = DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
+                        .where(BookSourceBeanDao.Properties.Enable.eq(1))
+                        .orderRaw(BookSourceManager.getBookSourceSort())
+                        .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
+                        .list();
+            } else {
+                String term = "%" + searchView.getQuery() + "%";
+                sourceBeanList = DbHelper.getDaoSession().getBookSourceBeanDao().queryBuilder()
+                        .whereOr(BookSourceBeanDao.Properties.BookSourceName.like(term),
+                                BookSourceBeanDao.Properties.BookSourceGroup.like(term),
+                                BookSourceBeanDao.Properties.BookSourceUrl.like(term))
+                        .orderRaw(BookSourceManager.getBookSourceSort())
+                        .orderAsc(BookSourceBeanDao.Properties.SerialNumber)
+                        .list();
+            }
+
             adapter.resetDataS(sourceBeanList);
         } else {
             adapter.resetDataS(BookSourceManager.getAllBookSource());
@@ -241,7 +250,7 @@ public class BookSourceActivity extends MBaseActivity<BookSourceContract.Present
     private void setupActionBar() {
         ActionBar actionBar = getSupportActionBar();
         if (actionBar != null) {
-            actionBar.setDisplayHomeAsUpEnabled(false);
+            actionBar.setDisplayHomeAsUpEnabled(true);
             actionBar.setTitle(R.string.book_source_manage);
         }
     }
@@ -257,7 +266,6 @@ public class BookSourceActivity extends MBaseActivity<BookSourceContract.Present
     public boolean onPrepareOptionsMenu(Menu menu) {
         groupItem = menu.findItem(R.id.action_group);
         groupMenu = groupItem.getSubMenu();
-        sortMenu = menu.findItem(R.id.action_sort).getSubMenu();
         upGroupMenu();
         upSortMenu();
         return super.onPrepareOptionsMenu(menu);
@@ -301,6 +309,9 @@ public class BookSourceActivity extends MBaseActivity<BookSourceContract.Present
             case R.id.sort_pin_yin:
                 upSourceSort(2);
                 break;
+            case R.id.show_enabled:
+                searchView.setQuery("enabled", false);
+                break;
             case R.id.action_share_wifi:
                 ShareService.startThis(this, adapter.getSelectDataList());
                 break;
@@ -318,21 +329,16 @@ public class BookSourceActivity extends MBaseActivity<BookSourceContract.Present
         if (groupMenu == null) return;
         groupMenu.removeGroup(R.id.source_group);
         List<String> groupList = BookSourceManager.getGroupList();
-        if (groupList.size() == 0) {
-            groupItem.setVisible(false);
-        } else {
-            groupItem.setVisible(true);
-            for (String groupName : new ArrayList<>(groupList)) {
-                groupMenu.add(R.id.source_group, Menu.NONE, Menu.NONE, groupName);
-            }
+        for (String groupName : new ArrayList<>(groupList)) {
+            groupMenu.add(R.id.source_group, Menu.NONE, Menu.NONE, groupName);
         }
     }
 
     private void upSortMenu() {
-        sortMenu.getItem(0).setChecked(false);
-        sortMenu.getItem(1).setChecked(false);
-        sortMenu.getItem(2).setChecked(false);
-        sortMenu.getItem(getSort()).setChecked(true);
+        groupMenu.getItem(0).setChecked(false);
+        groupMenu.getItem(1).setChecked(false);
+        groupMenu.getItem(2).setChecked(false);
+        groupMenu.getItem(getSort()).setChecked(true);
     }
 
     private void upSourceSort(int sort) {

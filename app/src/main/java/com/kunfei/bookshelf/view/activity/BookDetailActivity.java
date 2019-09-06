@@ -271,6 +271,16 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
     @SuppressLint("ClickableViewAccessibility")
     @Override
     protected void bindEvent() {
+        tvName.setOnClickListener(v -> {
+            if (bookShelfBean == null) return;
+            if (TextUtils.isEmpty(bookShelfBean.getBookInfoBean().getName())) return;
+            if (!AppActivityManager.getInstance().isExist(SearchBookActivity.class)) {
+                SearchBookActivity.startByKey(this, bookShelfBean.getBookInfoBean().getName());
+            } else {
+                RxBus.get().post(RxBusTag.SEARCH_BOOK, bookShelfBean.getBookInfoBean().getName());
+            }
+            finish();
+        });
         ivBlurCover.setOnClickListener(null);
         vwContent.setOnClickListener(v -> finish());
 
@@ -292,7 +302,8 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
         tvRead.setOnClickListener(v -> {
             if (!mPresenter.getInBookShelf()) {
                 BookshelfHelp.saveBookToShelf(mPresenter.getBookShelf());
-                DbHelper.getDaoSession().getBookChapterBeanDao().insertOrReplaceInTx(mPresenter.getChapterList());
+                if (mPresenter.getChapterList() != null)
+                    DbHelper.getDaoSession().getBookChapterBeanDao().insertOrReplaceInTx(mPresenter.getChapterList());
             }
             Intent intent = new Intent(BookDetailActivity.this, ReadBookActivity.class);
             intent.putExtra("openFrom", ReadBookPresenter.OPEN_FROM_APP);
@@ -329,7 +340,7 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
                 }
             }
             if (!mPresenter.getBookShelf().getTag().equals(BookShelfBean.LOCAL_TAG)) {
-                popupMenu.getMenu().add(Menu.NONE, R.id.menu_edit_book_source, Menu.NONE, R.string.edit_book_source);
+                popupMenu.getMenu().add(Menu.NONE, R.id.menu_edit, Menu.NONE, R.string.edit_book_source);
             }
             popupMenu.setOnMenuItemClickListener(menuItem -> {
                 switch (menuItem.getItemId()) {
@@ -344,7 +355,7 @@ public class BookDetailActivity extends MBaseActivity<BookDetailContract.Present
                         mPresenter.getBookShelf().setAllowUpdate(false);
                         mPresenter.addToBookShelf();
                         break;
-                    case R.id.menu_edit_book_source:
+                    case R.id.menu_edit:
                         BookSourceBean sourceBean = BookSourceManager.getBookSourceByUrl(mPresenter.getBookShelf().getTag());
                         if (sourceBean != null) {
                             SourceEditActivity.startThis(this, sourceBean);

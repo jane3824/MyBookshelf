@@ -141,6 +141,11 @@ public class ReadBookPresenter extends BasePresenterImpl<ReadBookContract.View> 
     }
 
     @Override
+    public void upBookSource() {
+        bookSourceBean = BookSourceManager.getBookSourceByUrl(bookShelf.getTag());
+    }
+
+    @Override
     public void saveBook() {
         if (bookShelf != null) {
             AsyncTask.execute(() -> BookshelfHelp.saveBookToShelf(bookShelf));
@@ -222,6 +227,8 @@ public class ReadBookPresenter extends BasePresenterImpl<ReadBookContract.View> 
      */
     @Override
     public void changeBookSource(SearchBookBean searchBook) {
+        searchBook.setName(bookShelf.getBookInfoBean().getName());
+        searchBook.setAuthor(bookShelf.getBookInfoBean().getAuthor());
         ChangeSourceHelp.changeBookSource(searchBook, bookShelf)
                 .subscribe(new MyObserver<TwoDataBean<BookShelfBean, List<BookChapterBean>>>() {
                     @Override
@@ -232,6 +239,7 @@ public class ReadBookPresenter extends BasePresenterImpl<ReadBookContract.View> 
                         chapterBeanList = value.getData2();
                         mView.changeSourceFinish(bookShelf);
                         String tag = bookShelf.getTag();
+                        upBookSource();
                         try {
                             long currentTime = System.currentTimeMillis();
                             String bookName = bookShelf.getBookInfoBean().getName();
@@ -275,6 +283,7 @@ public class ReadBookPresenter extends BasePresenterImpl<ReadBookContract.View> 
                     bookShelf = bookShelfBean;
                     ReadBookPresenter.this.chapterBeanList = chapterBeanList;
                     mView.changeSourceFinish(bookShelf);
+                    upBookSource();
                 } else {
                     mView.changeSourceFinish(null);
                 }
