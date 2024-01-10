@@ -10,11 +10,9 @@ import android.view.MenuItem;
 import android.widget.LinearLayout;
 
 import androidx.appcompat.app.ActionBar;
-import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.snackbar.Snackbar;
 import com.hwangjr.rxbus.RxBus;
@@ -25,6 +23,7 @@ import com.kunfei.bookshelf.base.observer.MySingleObserver;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.ReplaceRuleBean;
 import com.kunfei.bookshelf.constant.RxBusTag;
+import com.kunfei.bookshelf.databinding.ActivityRecyclerVewBinding;
 import com.kunfei.bookshelf.help.ItemTouchCallback;
 import com.kunfei.bookshelf.help.permission.Permissions;
 import com.kunfei.bookshelf.help.permission.PermissionsCompat;
@@ -32,7 +31,7 @@ import com.kunfei.bookshelf.model.ReplaceRuleManager;
 import com.kunfei.bookshelf.presenter.ReplaceRulePresenter;
 import com.kunfei.bookshelf.presenter.contract.ReplaceRuleContract;
 import com.kunfei.bookshelf.utils.ACache;
-import com.kunfei.bookshelf.utils.FileUtils;
+import com.kunfei.bookshelf.utils.RealPathUtil;
 import com.kunfei.bookshelf.utils.StringUtils;
 import com.kunfei.bookshelf.utils.theme.ThemeStore;
 import com.kunfei.bookshelf.view.adapter.ReplaceRuleAdapter;
@@ -41,10 +40,10 @@ import com.kunfei.bookshelf.widget.modialog.InputDialog;
 import com.kunfei.bookshelf.widget.modialog.MoDialogHUD;
 import com.kunfei.bookshelf.widget.modialog.ReplaceRuleDialog;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-import butterknife.BindView;
-import butterknife.ButterKnife;
 import kotlin.Unit;
 
 /**
@@ -55,13 +54,7 @@ import kotlin.Unit;
 public class ReplaceRuleActivity extends MBaseActivity<ReplaceRuleContract.Presenter> implements ReplaceRuleContract.View {
     private final int IMPORT_SOURCE = 102;
 
-    @BindView(R.id.toolbar)
-    Toolbar toolbar;
-    @BindView(R.id.ll_content)
-    LinearLayout llContent;
-    @BindView(R.id.recycler_view)
-    RecyclerView recyclerView;
-
+    private ActivityRecyclerVewBinding binding;
     private BookShelfBean bookShelfBean;
     private MoDialogHUD moDialogHUD;
     private ReplaceRuleAdapter adapter;
@@ -88,7 +81,8 @@ public class ReplaceRuleActivity extends MBaseActivity<ReplaceRuleContract.Prese
     @Override
     protected void onCreateActivity() {
         getWindow().getDecorView().setBackgroundColor(ThemeStore.backgroundColor(this));
-        setContentView(R.layout.activity_recycler_vew);
+        binding = ActivityRecyclerVewBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
     }
 
     @Override
@@ -97,8 +91,7 @@ public class ReplaceRuleActivity extends MBaseActivity<ReplaceRuleContract.Prese
         if (!TextUtils.isEmpty(dataKey)) {
             bookShelfBean = (BookShelfBean) BitIntentDataManager.getInstance().getData(dataKey);
         }
-        ButterKnife.bind(this);
-        this.setSupportActionBar(toolbar);
+        this.setSupportActionBar(binding.toolbar);
         setupActionBar();
         initRecyclerView();
         moDialogHUD = new MoDialogHUD(this);
@@ -106,15 +99,15 @@ public class ReplaceRuleActivity extends MBaseActivity<ReplaceRuleContract.Prese
     }
 
     private void initRecyclerView() {
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        recyclerView.addItemDecoration(new DividerItemDecoration(this, LinearLayout.VERTICAL));
+        binding.recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        binding.recyclerView.addItemDecoration(new DividerItemDecoration(this, LinearLayout.VERTICAL));
         adapter = new ReplaceRuleAdapter(this);
-        recyclerView.setAdapter(adapter);
+        binding.recyclerView.setAdapter(adapter);
         ItemTouchCallback itemTouchCallback = new ItemTouchCallback();
         itemTouchCallback.setOnItemTouchCallbackListener(adapter.getItemTouchCallbackListener());
         itemTouchCallback.setDragEnable(true);
         ItemTouchHelper itemTouchHelper = new ItemTouchHelper(itemTouchCallback);
-        itemTouchHelper.attachToRecyclerView(recyclerView);
+        itemTouchHelper.attachToRecyclerView(binding.recyclerView);
     }
 
     public void editReplaceRule(ReplaceRuleBean replaceRuleBean) {
@@ -176,34 +169,40 @@ public class ReplaceRuleActivity extends MBaseActivity<ReplaceRuleContract.Prese
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
-        switch (id) {
-            case R.id.action_add_replace_rule:
-                editReplaceRule(null);
-                break;
-            case R.id.action_select_all:
-                selectAllDataS();
-                break;
-            case R.id.action_import:
-                selectReplaceRuleFile();
-                break;
-            case R.id.action_import_onLine:
-                String cacheUrl = ACache.get(this).getAsString("replaceUrl");
-                InputDialog.builder(this)
-                        .setTitle(getString(R.string.input_replace_url))
-                        .setDefaultValue(cacheUrl)
-                        .setAdapterValues(new String[]{cacheUrl})
-                        .setCallback(inputText -> {
+        if (id == R.id.action_add_replace_rule) {
+            editReplaceRule(null);
+        } else if (id == R.id.action_select_all) {
+            selectAllDataS();
+        } else if (id == R.id.action_import) {
+            selectReplaceRuleFile();
+        } else if (id == R.id.action_import_onLine) {
+            String cacheUrl = ACache.get(this).getAsString("replaceUrl");
+            String[] cacheUrls = cacheUrl == null ? new String[]{} : cacheUrl.split(";");
+            List<String> urlList = new ArrayList<>(Arrays.asList(cacheUrls));
+            InputDialog.builder(this)
+                    .setTitle(getString(R.string.input_replace_url))
+                    .setDefaultValue(cacheUrl)
+                    .setAdapterValues(urlList)
+                    .setCallback(new InputDialog.Callback() {
+                        @Override
+                        public void setInputText(String inputText) {
                             inputText = StringUtils.trim(inputText);
-                            ACache.get(this).put("replaceUrl", inputText);
+                            if (!urlList.contains(inputText)) {
+                                urlList.add(0, inputText);
+                                ACache.get(ReplaceRuleActivity.this).put("replaceUrl", TextUtils.join(";", urlList));
+                            }
                             mPresenter.importDataS(inputText);
-                        }).show();
-                break;
-            case R.id.action_del_all:
-                mPresenter.delData(adapter.getData());
-                break;
-            case android.R.id.home:
-                finish();
-                break;
+                        }
+
+                        @Override
+                        public void delete(String value) {
+
+                        }
+                    }).show();
+        } else if (id == R.id.action_del_all) {
+            mPresenter.delData(adapter.getData());
+        } else if (id == android.R.id.home) {
+            finish();
         }
         return super.onOptionsItemSelected(item);
     }
@@ -233,7 +232,8 @@ public class ReplaceRuleActivity extends MBaseActivity<ReplaceRuleContract.Prese
     private void selectFileSys() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("text/*");//设置类型
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{"text/*", "application/json"});
+        intent.setType("*/*");//设置类型
         startActivityForResult(intent, IMPORT_SOURCE);
     }
 
@@ -254,12 +254,10 @@ public class ReplaceRuleActivity extends MBaseActivity<ReplaceRuleContract.Prese
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        switch (requestCode) {
-            case IMPORT_SOURCE:
-                if (data != null) {
-                    mPresenter.importDataSLocal(FileUtils.getPath(this, data.getData()));
-                }
-                break;
+        if (requestCode == IMPORT_SOURCE) {
+            if (data != null) {
+                mPresenter.importDataSLocal(RealPathUtil.getPath(this, data.getData()));
+            }
         }
     }
 
@@ -282,6 +280,6 @@ public class ReplaceRuleActivity extends MBaseActivity<ReplaceRuleContract.Prese
 
     @Override
     public Snackbar getSnackBar(String msg, int length) {
-        return Snackbar.make(llContent, msg, length);
+        return Snackbar.make(binding.llContent, msg, length);
     }
 }

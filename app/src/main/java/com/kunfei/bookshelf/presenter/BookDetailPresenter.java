@@ -17,6 +17,7 @@ import com.kunfei.bookshelf.base.observer.MyObserver;
 import com.kunfei.bookshelf.bean.BookChapterBean;
 import com.kunfei.bookshelf.bean.BookShelfBean;
 import com.kunfei.bookshelf.bean.BookSourceBean;
+import com.kunfei.bookshelf.bean.OpenChapterBean;
 import com.kunfei.bookshelf.bean.SearchBookBean;
 import com.kunfei.bookshelf.bean.TwoDataBean;
 import com.kunfei.bookshelf.constant.RxBusTag;
@@ -44,7 +45,8 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
     private BookShelfBean bookShelf;
     private List<BookChapterBean> chapterBeanList;
     private Boolean inBookShelf = false;
-    private CompositeDisposable compositeDisposable = new CompositeDisposable();
+    private final CompositeDisposable compositeDisposable = new CompositeDisposable();
+    private Disposable changeSourceDisposable;
 
     @Override
     public void initData(Intent intent) {
@@ -56,15 +58,17 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
                 String noteUrl = intent.getStringExtra("noteUrl");
                 if (!TextUtils.isEmpty(noteUrl)) {
                     bookShelf = BookshelfHelp.getBook(noteUrl);
-                } else {
-                    mView.finish();
-                    return;
                 }
+            }
+            if (bookShelf == null) {
+                mView.finish();
+                return;
             }
             inBookShelf = true;
             searchBook = new SearchBookBean();
             searchBook.setNoteUrl(bookShelf.getNoteUrl());
             searchBook.setTag(bookShelf.getTag());
+            chapterBeanList = BookshelfHelp.getChapterList(bookShelf.getNoteUrl());
         } else {
             initBookFormSearch((SearchBookBean) BitIntentDataManager.getInstance().getData(key));
         }
@@ -77,7 +81,7 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
             return;
         }
         searchBook = searchBookBean;
-        inBookShelf = searchBookBean.getIsCurrentSource();
+        inBookShelf = BookshelfHelp.isInBookShelf(searchBookBean.getNoteUrl());
         bookShelf = BookshelfHelp.getBookFromSearchBook(searchBookBean);
     }
 
@@ -108,6 +112,7 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
 
     @Override
     public void getBookShelfInfo() {
+        if (bookShelf == null) return;
         if (BookShelfBean.LOCAL_TAG.equals(bookShelf.getTag())) return;
         WebBookModel.getInstance().getBookInfo(bookShelf)
                 .flatMap(bookShelfBean -> WebBookModel.getInstance().getChapterList(bookShelfBean))
@@ -120,7 +125,7 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
                     }
 
                     @Override
-                    public void onNext(List<BookChapterBean> bookChapterBeans) {
+                    public void onNext(@NonNull List<BookChapterBean> bookChapterBeans) {
                         chapterBeanList = bookChapterBeans;
                         mView.updateView();
                     }
@@ -169,7 +174,7 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
                         }
 
                         @Override
-                        public void onNext(Boolean value) {
+                        public void onNext(@NonNull Boolean value) {
                             if (value) {
                                 RxBus.get().post(RxBusTag.HAD_ADD_BOOK, bookShelf);
                                 mView.updateView();
@@ -204,7 +209,7 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
                         }
 
                         @Override
-                        public void onNext(Boolean value) {
+                        public void onNext(@NonNull Boolean value) {
                             if (value) {
                                 RxBus.get().post(RxBusTag.HAD_REMOVE_BOOK, bookShelf);
                                 mView.updateView();
@@ -227,12 +232,22 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
      */
     @Override
     public void changeBookSource(SearchBookBean searchBookBean) {
+        if (changeSourceDisposable != null && !changeSourceDisposable.isDisposed()) {
+            changeSourceDisposable.dispose();
+        }
         searchBookBean.setName(bookShelf.getBookInfoBean().getName());
         searchBookBean.setAuthor(bookShelf.getBookInfoBean().getAuthor());
         ChangeSourceHelp.changeBookSource(searchBookBean, bookShelf)
                 .subscribe(new MyObserver<TwoDataBean<BookShelfBean, List<BookChapterBean>>>() {
                     @Override
-                    public void onNext(TwoDataBean<BookShelfBean, List<BookChapterBean>> value) {
+                    public void onSubscribe(Disposable d) {
+                        super.onSubscribe(d);
+                        compositeDisposable.add(d);
+                        changeSourceDisposable = d;
+                    }
+
+                    @Override
+                    public void onNext(@NonNull TwoDataBean<BookShelfBean, List<BookChapterBean>> value) {
                         RxBus.get().post(RxBusTag.HAD_REMOVE_BOOK, bookShelf);
                         RxBus.get().post(RxBusTag.HAD_ADD_BOOK, value);
                         bookShelf = value.getData1();
@@ -283,5 +298,15 @@ public class BookDetailPresenter extends BasePresenterImpl<BookDetailContract.Vi
     public void hadAddOrRemoveBook(BookShelfBean bookShelfBean) {
         bookShelf = bookShelfBean;
         mView.updateView();
+    }
+
+    @Subscribe(thread = EventThread.MAIN_THREAD, tags = {@Tag(RxBusTag.SKIP_TO_CHAPTER)})
+    public void skipToChapter(OpenChapterBean openChapterBean) {
+        bookShelf.setDurChapter(openChapterBean.getChapterIndex());
+        bookShelf.setDurChapterPage(openChapterBean.getPageIndex());
+        if (inBookShelf) {
+            BookshelfHelp.saveBookToShelf(bookShelf);
+        }
+        mView.readBook();
     }
 }

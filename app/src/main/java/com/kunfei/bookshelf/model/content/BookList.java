@@ -1,5 +1,7 @@
 package com.kunfei.bookshelf.model.content;
 
+import static android.text.TextUtils.isEmpty;
+
 import android.os.Build;
 import android.text.TextUtils;
 
@@ -25,13 +27,11 @@ import java.util.regex.Pattern;
 import io.reactivex.Observable;
 import retrofit2.Response;
 
-import static android.text.TextUtils.isEmpty;
-
 class BookList {
-    private String tag;
-    private String sourceName;
-    private BookSourceBean bookSourceBean;
-    private boolean isFind;
+    private final String tag;
+    private final String sourceName;
+    private final BookSourceBean bookSourceBean;
+    private final boolean isFind;
     //规则
     private String ruleList;
     private String ruleName;
@@ -62,7 +62,7 @@ class BookList {
             }
             String body = response.body();
             List<SearchBookBean> books = new ArrayList<>();
-            AnalyzeRule analyzer = new AnalyzeRule(null);
+            AnalyzeRule analyzer = new AnalyzeRule(null, bookSourceBean);
             analyzer.setContent(body, baseUrl);
             //如果符合详情页url规则
             if (!isEmpty(bookSourceBean.getRuleBookUrlPattern())
@@ -211,18 +211,18 @@ class BookList {
             Debug.printLog(tag, "┌获取作者");
             item.setAuthor(StringUtils.formatHtml(analyzer.getString(bookSourceBean.getRuleBookAuthor())));
             Debug.printLog(tag, "└" + item.getAuthor());
-            Debug.printLog(tag, "┌获取封面");
-            item.setCoverUrl(analyzer.getString(bookSourceBean.getRuleCoverUrl(), true));
-            Debug.printLog(tag, "└" + item.getCoverUrl());
             Debug.printLog(tag, "┌获取分类");
             item.setKind(analyzer.getString(bookSourceBean.getRuleBookKind()));
             Debug.printLog(tag, 111, "└" + item.getKind());
             Debug.printLog(tag, "┌获取最新章节");
             item.setLastChapter(analyzer.getString(bookSourceBean.getRuleBookLastChapter()));
-            Debug.printLog(tag, "└最新章节:" + item.getLastChapter());
+            Debug.printLog(tag, "└" + item.getLastChapter());
             Debug.printLog(tag, "┌获取简介");
             item.setIntroduce(analyzer.getString(bookSourceBean.getRuleIntroduce()));
             Debug.printLog(tag, 1, "└" + item.getIntroduce(), true, true);
+            Debug.printLog(tag, "┌获取封面");
+            item.setCoverUrl(analyzer.getString(bookSourceBean.getRuleCoverUrl(), true));
+            Debug.printLog(tag, "└" + item.getCoverUrl());
             return item;
         }
         return null;
@@ -363,8 +363,8 @@ class BookList {
                 }
                 // 保存当前节点的书籍信息
                 item.setSearchInfo(
-                        ruleVal.get("ruleName"),        // 保存书名
-                        ruleVal.get("ruleAuthor"),      // 保存作者
+                        StringUtils.formatHtml(ruleVal.get("ruleName")),        // 保存书名
+                        StringUtils.formatHtml(ruleVal.get("ruleAuthor")),      // 保存作者
                         ruleVal.get("ruleKind"),        // 保存分类
                         ruleVal.get("ruleLastChapter"), // 保存终章
                         ruleVal.get("ruleIntroduce"),   // 保存简介
@@ -381,19 +381,19 @@ class BookList {
             } while (resM.find());
             // 输出调试信息
             Debug.printLog(tag, "└找到 " + books.size() + " 个匹配的结果");
-            Debug.printLog(tag, "┌获取书籍名称");
+            Debug.printLog(tag, "┌获取书名");
             Debug.printLog(tag, "└" + books.get(0).getName());
-            Debug.printLog(tag, "┌获取作者名称");
+            Debug.printLog(tag, "┌获取作者");
             Debug.printLog(tag, "└" + books.get(0).getAuthor());
-            Debug.printLog(tag, "┌获取分类信息");
+            Debug.printLog(tag, "┌获取分类");
             Debug.printLog(tag, 111, "└" + books.get(0).getKind());
             Debug.printLog(tag, "┌获取最新章节");
             Debug.printLog(tag, "└" + books.get(0).getLastChapter());
-            Debug.printLog(tag, "┌获取简介内容");
+            Debug.printLog(tag, "┌获取简介");
             Debug.printLog(tag, 1, "└" + books.get(0).getIntroduce(), true, true);
-            Debug.printLog(tag, "┌获取封面网址");
+            Debug.printLog(tag, "┌获取封面");
             Debug.printLog(tag, "└" + books.get(0).getCoverUrl());
-            Debug.printLog(tag, "┌获取书籍网址");
+            Debug.printLog(tag, "┌获取书籍");
             Debug.printLog(tag, "└" + books.get(0).getNoteUrl());
         } else {
             StringBuilder result = new StringBuilder();

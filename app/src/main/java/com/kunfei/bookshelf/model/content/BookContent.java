@@ -1,5 +1,7 @@
 package com.kunfei.bookshelf.model.content;
 
+import static com.kunfei.bookshelf.constant.AppConstant.JS_PATTERN;
+
 import android.text.TextUtils;
 
 import com.kunfei.bookshelf.DbHelper;
@@ -23,8 +25,6 @@ import java.util.regex.Matcher;
 
 import io.reactivex.Observable;
 import retrofit2.Response;
-
-import static com.kunfei.bookshelf.constant.AppConstant.JS_PATTERN;
 
 class BookContent {
     private String tag;
@@ -70,7 +70,7 @@ class BookContent {
             bookContentBean.setDurChapterIndex(chapterBean.getDurChapterIndex());
             bookContentBean.setDurChapterUrl(chapterBean.getDurChapterUrl());
             bookContentBean.setTag(tag);
-            AnalyzeRule analyzer = new AnalyzeRule(bookShelfBean);
+            AnalyzeRule analyzer = new AnalyzeRule(bookShelfBean, bookSourceBean);
             WebContentBean webContentBean = analyzeBookContent(analyzer, s, chapterBean.getDurChapterUrl(), baseUrl);
             bookContentBean.setDurChapterContent(webContentBean.content);
 
@@ -92,10 +92,17 @@ class BookContent {
 
                 while (!TextUtils.isEmpty(webContentBean.nextUrl) && !usedUrlList.contains(webContentBean.nextUrl)) {
                     usedUrlList.add(webContentBean.nextUrl);
-                    if (nextChapter != null && NetworkUtils.getAbsoluteURL(baseUrl, webContentBean.nextUrl).equals(NetworkUtils.getAbsoluteURL(baseUrl, nextChapter.getDurChapterUrl()))) {
+                    if (nextChapter != null &&
+                            NetworkUtils.getAbsoluteURL(
+                                    baseUrl, webContentBean.nextUrl
+                            ).equals(NetworkUtils.getAbsoluteURL(baseUrl, nextChapter.getDurChapterUrl()))
+                    ) {
                         break;
                     }
-                    AnalyzeUrl analyzeUrl = new AnalyzeUrl(webContentBean.nextUrl, headerMap, tag);
+                    AnalyzeUrl analyzeUrl = new AnalyzeUrl(
+                            webContentBean.nextUrl, tag, bookSourceBean,
+                            bookSourceBean.getHeaderMap(true)
+                    );
                     try {
                         String body;
                         Response<String> response = BaseModelImpl.getInstance().getResponseO(analyzeUrl).blockingFirst();
@@ -111,6 +118,11 @@ class BookContent {
                     }
                 }
             }
+            String replaceRule = bookSourceBean.getRuleBookContentReplace();
+            if (replaceRule != null && replaceRule.trim().length() > 0) {
+                analyzer.setContent(bookContentBean.getDurChapterContent());
+                bookContentBean.setDurChapterContent(analyzer.getString(replaceRule));
+            }
             e.onNext(bookContentBean);
             e.onComplete();
         });
@@ -121,7 +133,12 @@ class BookContent {
 
         analyzer.setContent(s, NetworkUtils.getAbsoluteURL(baseUrl, chapterUrl));
         Debug.printLog(tag, 1, "┌解析正文内容");
-        webContentBean.content = StringUtils.formatHtml(analyzer.getString(ruleBookContent));
+        if (ruleBookContent.equals("all") || ruleBookContent.contains("@all")) {
+            webContentBean.content = analyzer.getString(ruleBookContent);
+        }
+        else {
+            webContentBean.content = StringUtils.formatHtml(analyzer.getString(ruleBookContent));
+        }
         Debug.printLog(tag, 1, "└" + webContentBean.content);
         String nextUrlRule = bookSourceBean.getRuleContentUrlNext();
         if (!TextUtils.isEmpty(nextUrlRule)) {
@@ -133,7 +150,7 @@ class BookContent {
         return webContentBean;
     }
 
-    private class WebContentBean {
+    private static class WebContentBean {
         private String content;
         private String nextUrl;
 
